@@ -47,15 +47,19 @@ append hoặc xoá/ghi lại theo partition ngày.
 | | |
 |---|---|
 | **Triệu chứng** | `gold_feature_daily` có 8.645 hàng, thiếu 455 hàng so với kỳ vọng 9.100; thiếu tập trung ở các ngày quá khứ. |
-| **P99 độ trễ đo được** | **… ngày** *(bắt buộc — sẽ đo trước khi sửa)* |
-| **Lookback đã chọn** | … ngày — vì … |
-| **Nguyên nhân** | *Chờ xác nhận bằng phép đo P99 và đọc điều kiện incremental.* |
-| **Cách khắc phục** | *Chờ thực hiện.* |
-| **Bằng chứng** | trước: **8.645** hàng · sau: … hàng |
+| **P99 độ trễ đo được** | **2,725833 ngày** (P50: 0,128090; P95: 1,813693; max: 2,944688; tỷ lệ trễ >1 ngày: 5,0509%). |
+| **Lookback đã chọn** | **3 ngày** — làm tròn lên từ P99 2,725833 ngày để bao phủ 99% dữ liệu về muộn. |
+| **Nguyên nhân** | Điều kiện incremental chỉ lấy `event_date` lớn hơn ngày lớn nhất đã có trong Gold. Event tới kho muộn có `event_date` thuộc ngày quá khứ nên không còn thoả điều kiện và bị bỏ sót vĩnh viễn. |
+| **Cách khắc phục** | Sửa `dbt/models/gold/gold_feature_daily.sql`: dùng cửa sổ `event_date >= max(event_date) - interval 3 day`; thêm `unique_key=['event_date', 'customer_id']` và `incremental_strategy='merge'` để các cặp được tính lại bị cập nhật thay vì nhân bản. |
+| **Bằng chứng** | trước: **8.645** hàng · sau: **9.100** hàng; checksum `3db448685c` giống nhau ở 3 lượt `make verify`. |
 
 Vì sao chọn P99 làm căn cứ thay vì `max`? Chi phí của mỗi lựa chọn là gì?
 
-> *Chờ trả lời sau khi đo phân bố độ trễ của `bronze_events`.*
+> Dùng P99 giúp không nới lookback vĩnh viễn chỉ vì một outlier cực hiếm. Mỗi
+> ngày lookback tăng thêm khiến pipeline phải tính lại thêm một ngày dữ liệu ở
+> mọi lượt chạy. Trong bộ dữ liệu này max cũng dưới 3 ngày nên cả hai đều làm
+> tròn thành 3 ngày; tuy nhiên P99 là chính sách bền vững hơn khi dữ liệu mới
+> xuất hiện outlier lớn.
 
 ---
 
